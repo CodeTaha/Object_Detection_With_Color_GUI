@@ -36,8 +36,8 @@ Bu proje, **OpenCV** ve **CustomTkinter** kullanılarak geliştirilmiş modern v
 
 ### Adım 1: Projeyi İndir
 ```bash
-git clone https://github.com/kullaniciadi/RenkIleTespitGUI.git
-cd RenkIleTespitGUI
+git clone https://github.com/CodeTaha/Object_Detection_With_Color_GUI.git
+cd Object_Detection_With_Color_GUI
 ```
 
 ### Adım 2: Sanal Ortam Oluştur (Önerilen)
@@ -133,8 +133,8 @@ python ModernRenkIleNesneTespiti.py
 
 ## 📞 İletişim
 
-- **Proje Linki**: [https://github.com/kullaniciadi/RenkIleTespitGUI](https://github.com/kullaniciadi/RenkIleTespitGUI)
-- **Sorun Bildirimi**: [Issues](https://github.com/kullaniciadi/RenkIleTespitGUI/issues)
+- **Proje Linki**: [https://github.com/CodeTaha/Object_Detection_With_Color_GUI](https://github.com/CodeTaha/Object_Detection_With_Color_GUI)
+- **Sorun Bildirimi**: [Issues](https://github.com/CodeTaha/Object_Detection_With_Color_GUI/issues)
 
 ## 🙏 Teşekkürler
 
