@@ -5,6 +5,8 @@ from PIL import Image, ImageTk
 from collections import deque
 import threading
 import time
+import os
+from datetime import datetime
 
 # CustomTkinter tema ayarları
 ctk.set_appearance_mode("dark")  # Koyu tema
@@ -27,6 +29,18 @@ class ModernRenkTakipUygulamasi:
         self.buffer_size = 32
         self.pts = deque(maxlen=self.buffer_size)
         self.is_running = True
+        
+        # Video kayıt değişkenleri
+        self.is_recording = False
+        self.video_writer = None
+        self.recordings_folder = "video_kayitlari"
+        self.recording_start_time = None
+        self.recording_timer_id = None
+        self.frame_counter = 0
+        
+        # Kayıt klasörünü oluştur
+        if not os.path.exists(self.recordings_folder):
+            os.makedirs(self.recordings_folder)
         
         # HSV sınırları
         self.lower_bound = (90, 50, 50)
@@ -255,6 +269,19 @@ class ModernRenkTakipUygulamasi:
         )
         self.start_button.pack(pady=8)
         
+        # Video Kayıt butonu
+        self.record_button = ctk.CTkButton(
+            button_frame,
+            text="🔴 Kayıt Başlat",
+            command=self.toggle_recording,
+            fg_color="#cc0000",
+            hover_color="#990000",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            height=40,
+            width=120
+        )
+        self.record_button.pack(pady=8)
+        
         # Sıfırla butonu - Büyük ve kalın
         self.reset_button = ctk.CTkButton(
             button_frame,
@@ -294,6 +321,16 @@ class ModernRenkTakipUygulamasi:
         )
         video_title.pack(pady=20)
         
+        # Kayıt süresi göstergesi
+        self.recording_timer_label = ctk.CTkLabel(
+            right_panel,
+            text="⏱️ Kayıt Süresi: 00:00:00",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#cc0000"
+        )
+        self.recording_timer_label.pack(pady=(0, 10))
+        self.recording_timer_label.pack_forget()  # Başlangıçta gizli
+        
         # Video container
         self.video_container = ctk.CTkFrame(right_panel, fg_color="#1a1a1a", corner_radius=10)
         self.video_container.pack(fill="both", expand=True, padx=20, pady=(0, 20))
@@ -318,6 +355,9 @@ class ModernRenkTakipUygulamasi:
     
     def create_color_button(self, parent, text, color, column):
         """Renk paleti butonları oluştur"""
+        # Açık renkler için siyah yazı, koyu renkler için beyaz yazı
+        text_color = "#000000" if color in ["#ffff00", "#ffffff", "#00ff00"] else "#ffffff"
+        
         button = ctk.CTkButton(
             parent,
             text=text,
@@ -327,7 +367,8 @@ class ModernRenkTakipUygulamasi:
             font=ctk.CTkFont(size=12, weight="bold"),
             height=35,
             width=80,
-            corner_radius=20
+            corner_radius=20,
+            text_color=text_color
         )
         button.grid(row=0, column=column, padx=5, pady=2)
         return button
@@ -406,6 +447,81 @@ class ModernRenkTakipUygulamasi:
             self.start_button.configure(text="⏸️ Duraklat", fg_color="#cc7a00")
             self.status_label.configure(text="🟢 Çalışıyor", text_color="#00cc7a")
     
+    def toggle_recording(self):
+        """Video kaydını başlat/durdur"""
+        if not self.is_recording:
+            # Kayıt başlat
+            self.start_recording()
+        else:
+            # Kayıt durdur
+            self.stop_recording()
+    
+    def start_recording(self):
+        """Video kaydını başlat"""
+        if not self.is_running:
+            self.status_label.configure(text="❌ Önce kamerayı başlatın!", text_color="#cc0000")
+            return
+        
+        # Kayıt dosya adını oluştur
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"kayit_{timestamp}.avi"
+        filepath = os.path.join(self.recordings_folder, filename)
+        
+        # Video writer oluştur
+        # MJPG codec kullan (daha iyi performans için)
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        # Sabit FPS kullan (kamera FPS'i yerine)
+        target_fps = 15.0  # 15 FPS ile kayıt
+        
+        self.video_writer = cv2.VideoWriter(filepath, fourcc, target_fps, (frame_width, frame_height))
+        
+        if self.video_writer.isOpened():
+            self.is_recording = True
+            self.record_button.configure(text="⏹️ Kayıt Durdur", fg_color="#cc7a00")
+            self.status_label.configure(text=f"🔴 Kayıt başladı: {filename}", text_color="#cc0000")
+            
+            # Kayıt süresi sayacını başlat
+            self.recording_start_time = datetime.now()
+            self.frame_counter = 0  # Frame sayacını sıfırla
+            self.recording_timer_label.pack(pady=(0, 10))
+            self.update_recording_timer()
+        else:
+            self.status_label.configure(text="❌ Kayıt başlatılamadı!", text_color="#cc0000")
+    
+    def stop_recording(self):
+        """Video kaydını durdur"""
+        if self.video_writer:
+            self.video_writer.release()
+            self.video_writer = None
+        
+        self.is_recording = False
+        self.record_button.configure(text="🔴 Kayıt Başlat", fg_color="#cc0000")
+        self.status_label.configure(text="✅ Kayıt durduruldu", text_color="#00cc7a")
+        
+        # Kayıt süresi göstergesini gizle ve timer'ı durdur
+        self.recording_timer_label.pack_forget()
+        if self.recording_timer_id:
+            self.root.after_cancel(self.recording_timer_id)
+            self.recording_timer_id = None
+        self.recording_start_time = None
+    
+    def update_recording_timer(self):
+        """Kayıt süresini güncelle"""
+        if self.is_recording and self.recording_start_time:
+            elapsed = datetime.now() - self.recording_start_time
+            hours = int(elapsed.total_seconds() // 3600)
+            minutes = int((elapsed.total_seconds() % 3600) // 60)
+            seconds = int(elapsed.total_seconds() % 60)
+            
+            timer_text = f"⏱️ Kayıt Süresi: {hours:02d}:{minutes:02d}:{seconds:02d}"
+            self.recording_timer_label.configure(text=timer_text)
+            
+            # Her 1 saniyede bir güncelle
+            self.recording_timer_id = self.root.after(1000, self.update_recording_timer)
+    
     def camera_loop(self):
         while True:
             if self.is_running:
@@ -449,6 +565,15 @@ class ModernRenkTakipUygulamasi:
                                 continue
                             cv2.line(imgOriginal, self.pts[i-1], self.pts[i], (0, 255, 0), 3)
 
+                    # Video kaydı yap
+                    if self.is_recording and self.video_writer:
+                        # Frame sayacını artır
+                        self.frame_counter += 1
+                        
+                        # Her 2 frame'de bir kaydet (15 FPS için)
+                        if self.frame_counter % 2 == 0:
+                            self.video_writer.write(imgOriginal)
+                    
                     # OpenCV görüntüsünü CustomTkinter formatına çevirme
                     imgOriginal = cv2.cvtColor(imgOriginal, cv2.COLOR_BGR2RGB)
                     img = Image.fromarray(imgOriginal)
@@ -460,7 +585,8 @@ class ModernRenkTakipUygulamasi:
                     # Ana thread'de güncelle
                     self.root.after(0, self.update_video_display, imgtk)
             
-            time.sleep(0.03)  # ~30 FPS
+            # Minimum sleep süresi (çok hızlı döngüyü önle)
+            time.sleep(0.001)
     
     def update_video_display(self, imgtk):
         self.video_label.configure(image=imgtk, text="")
@@ -468,6 +594,14 @@ class ModernRenkTakipUygulamasi:
     
     def close_app(self):
         """Uygulamayı tamamen kapat ve durdur"""
+        # Video kaydını durdur
+        if self.is_recording:
+            self.stop_recording()
+        
+        # Timer'ı durdur
+        if self.recording_timer_id:
+            self.root.after_cancel(self.recording_timer_id)
+        
         self.is_running = False
         if self.cap.isOpened():
             self.cap.release()
